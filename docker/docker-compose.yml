@@ -1,7 +1,5 @@
 
 x-build: &build
-  # Default context is the repo root relative to this file's location (repo/docker).
-  # install.sh runs compose from $MERCURE_BASE and exports MERCURE_SRC to override this.
   context: ${MERCURE_SRC:-..}
   args:
     VERSION_TAG: ${TAG:-latest}
@@ -12,22 +10,18 @@ x-env: &env
     MERCURE_RUNNER: docker
 
 x-docker-user: &docker-user
-  user: "${UID}:${DOCKER_GID}"
+  user: "${UID:-1000}:${DOCKER_GID:-999}"
 
 x-user: &user
-  user: "${UID}:${GID}"
+  user: "${UID:-1000}:${GID:-1000}"
 
 networks:
   datastore:
-    # Redis + DB only. No external routing.
     internal: true
   services:
-    # Inter-service communication (all services <-> bookkeeper).
     internal: true
   exposed:
-    # Port-facing services (UI, receiver).
   egress:
-    # Services requiring outbound network access (dispatcher, processor).
 
 services:
   base:
@@ -35,10 +29,15 @@ services:
     build:
       context: ${MERCURE_SRC:-..}
       dockerfile: docker/base/Dockerfile
-    profiles: [build]
+    profiles: ["build"]
 
   ui:
     <<: [*docker-user, *env]
+    image: mercureimaging/mercure-ui${IMAGE_TAG:-:latest}
+    build:
+      <<: *build
+      dockerfile: docker/ui/Dockerfile
+    restart: always
     depends_on:
       db:
         condition: service_healthy
@@ -50,12 +49,7 @@ services:
         condition: service_started
     environment:
       MERCURE_RUNNER: docker
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-    image: mercureimaging/mercure-ui${IMAGE_TAG}
-    build:
-      <<: *build
-      dockerfile: docker/ui/Dockerfile
-    restart: always
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}@redis:6379/0
     ports:
       - "8000:8000"
     volumes:
@@ -81,12 +75,15 @@ services:
       - db-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mercure"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - datastore
 
   receiver:
     <<: [*user, *env]
-    image: mercureimaging/mercure-receiver${IMAGE_TAG}
+    image: mercureimaging/mercure-receiver${IMAGE_TAG:-:latest}
     build:
       <<: *build
       dockerfile: docker/receiver/Dockerfile
@@ -105,7 +102,7 @@ services:
 
   cleaner:
     <<: [*user, *env]
-    image: mercureimaging/mercure-cleaner${IMAGE_TAG}
+    image: mercureimaging/mercure-cleaner${IMAGE_TAG:-:latest}
     build:
       <<: *build
       dockerfile: docker/cleaner/Dockerfile
@@ -121,7 +118,7 @@ services:
 
   dispatcher:
     <<: [*user, *env]
-    image: mercureimaging/mercure-dispatcher${IMAGE_TAG}
+    image: mercureimaging/mercure-dispatcher${IMAGE_TAG:-:latest}
     build:
       <<: *build
       dockerfile: docker/dispatcher/Dockerfile
@@ -138,7 +135,7 @@ services:
 
   processor:
     <<: [*docker-user, *env]
-    image: mercureimaging/mercure-processor${IMAGE_TAG}
+    image: mercureimaging/mercure-processor${IMAGE_TAG:-:latest}
     build:
       <<: *build
       dockerfile: docker/processor/Dockerfile
@@ -157,7 +154,7 @@ services:
 
   router:
     <<: [*user, *env]
-    image: mercureimaging/mercure-router${IMAGE_TAG}
+    image: mercureimaging/mercure-router${IMAGE_TAG:-:latest}
     build:
       <<: *build
       dockerfile: docker/router/Dockerfile
@@ -173,7 +170,7 @@ services:
 
   bookkeeper:
     <<: [*user, *env]
-    image: mercureimaging/mercure-bookkeeper${IMAGE_TAG}
+    image: mercureimaging/mercure-bookkeeper${IMAGE_TAG:-:latest}
     build:
       <<: *build
       dockerfile: docker/bookkeeper/Dockerfile
@@ -196,7 +193,7 @@ services:
       - -c
       - 'test -n "$$REDIS_PASSWORD" || { echo "ERROR: REDIS_PASSWORD is not set"; exit 1; } && exec redis-server --save 20 1 --requirepass "$$REDIS_PASSWORD"'
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}
     volumes:
       - redis-cache:/data
     networks:
@@ -204,7 +201,7 @@ services:
 
   worker_fast:
     <<: *user
-    image: mercureimaging/mercure-worker${IMAGE_TAG}
+    image: mercureimaging/mercure-worker${IMAGE_TAG:-:latest}
     build:
       <<: *build
       dockerfile: docker/worker/Dockerfile
@@ -213,7 +210,7 @@ services:
       - redis
     environment:
       WORKER_QUEUE: mercure_fast
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}@redis:6379/0
     volumes:
       - data:/opt/mercure/data
       - /opt/mercure/config:/opt/mercure/config:ro
@@ -222,13 +219,13 @@ services:
 
   worker_slow:
     <<: *user
-    image: mercureimaging/mercure-worker${IMAGE_TAG}
+    image: mercureimaging/mercure-worker${IMAGE_TAG:-:latest}
     restart: always
     depends_on:
       - redis
     environment:
       WORKER_QUEUE: mercure_slow
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}@redis:6379/0
     volumes:
       - data:/opt/mercure/data
       - /opt/mercure/config:/opt/mercure/config:ro
@@ -239,16 +236,16 @@ volumes:
   db-data:
     driver: local
     driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/opt/mercure/db"
+      type: none
+      o: bind
+      device: /opt/mercure/db
 
   data:
     driver: local
     driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/opt/mercure/data"
+      type: none
+      o: bind
+      device: /opt/mercure/data
 
   redis-cache:
     driver: local
