@@ -234,18 +234,5 @@ services:
 
 volumes:
   db-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/mercure/db
-
   data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/mercure/data
-
   redis-cache:
-    driver: local
