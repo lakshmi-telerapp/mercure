@@ -192,18 +192,27 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    # Use Compose ${...} interpolation so requirepass is always set ($$ shell
+    # escaping can expand empty under Coolify and leave Redis unauthenticated).
     command:
-      - sh
-      - -c
-      - 'exec redis-server --save 20 1 --requirepass "$$REDIS_PASSWORD"'
+      - redis-server
+      - --save
+      - "20"
+      - "1"
+      - --requirepass
+      - ${REDIS_PASSWORD:-mercure-redis-default-2026}
     environment:
       REDIS_PASSWORD: "${REDIS_PASSWORD:-mercure-redis-default-2026}"
     volumes:
       - redis-cache:/data
     healthcheck:
       test:
-        - CMD-SHELL
-        - 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG'
+        - CMD
+        - redis-cli
+        - --no-auth-warning
+        - -a
+        - ${REDIS_PASSWORD:-mercure-redis-default-2026}
+        - ping
       interval: 5s
       timeout: 3s
       retries: 10
