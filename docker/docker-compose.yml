@@ -47,36 +47,43 @@ services:
     restart: "no"
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangePasswordHere}
-      BOOKKEEPER_API_KEY: ${BOOKKEEPER_API_KEY:-${REDIS_PASSWORD:-mercure-redis-default-2026}}
+      BOOKKEEPER_API_KEY: ${BOOKKEEPER_API_KEY:-mercure-bookkeeper-default-2026}
     volumes:
       - /opt/mercure/config:/opt/mercure/config
       - /opt/mercure/persistence:/opt/mercure/persistence
+      - data:/opt/mercure/data
     command:
       - sh
       - -c
       - |
         set -eu
-        mkdir -p /opt/mercure/config /opt/mercure/persistence
+        mkdir -p /opt/mercure/config /opt/mercure/persistence \
+          /opt/mercure/data/incoming /opt/mercure/data/studies /opt/mercure/data/outgoing \
+          /opt/mercure/data/success /opt/mercure/data/error /opt/mercure/data/discard \
+          /opt/mercure/data/processing /opt/mercure/data/jobs
         if [ ! -f /opt/mercure/config/mercure.json ]; then
           cp /opt/mercure/app/configuration/default_mercure.json /opt/mercure/config/mercure.json
         fi
         # Match install.sh docker setup: service DNS + real API key (placeholder refuses to boot).
+        # Secrets are Compose-interpolated (no $$), same approach as redis --requirepass.
         sed -i "s|0.0.0.0:8080|bookkeeper:8080|" /opt/mercure/config/mercure.json
-        sed -i "s|BOOKKEEPER_TOKEN_PLACEHOLDER|$${BOOKKEEPER_API_KEY}|" /opt/mercure/config/mercure.json
+        sed -i "s|BOOKKEEPER_TOKEN_PLACEHOLDER|${BOOKKEEPER_API_KEY:-mercure-bookkeeper-default-2026}|" /opt/mercure/config/mercure.json
         [ -f /opt/mercure/config/services.json ] || cp /opt/mercure/app/configuration/default_services.json /opt/mercure/config/services.json
         if [ ! -f /opt/mercure/config/webgui.env ]; then
           cp /opt/mercure/app/configuration/default_webgui.env /opt/mercure/config/webgui.env
         fi
-        sed -i "s|PutSomethingRandomHere|$${BOOKKEEPER_API_KEY}|" /opt/mercure/config/webgui.env
+        sed -i "s|PutSomethingRandomHere|${BOOKKEEPER_API_KEY:-mercure-bookkeeper-default-2026}|" /opt/mercure/config/webgui.env
+        if grep -q 'SECRET_KEY=PutSomethingRandomHere' /opt/mercure/config/webgui.env \
+          || ! grep -q '^SECRET_KEY=.' /opt/mercure/config/webgui.env; then
+          sed -i "s|^SECRET_KEY=.*|SECRET_KEY=${BOOKKEEPER_API_KEY:-mercure-bookkeeper-default-2026}|" /opt/mercure/config/webgui.env
+        fi
         if [ ! -f /opt/mercure/config/bookkeeper.env ]; then
           cp /opt/mercure/app/configuration/default_bookkeeper.env /opt/mercure/config/bookkeeper.env
         fi
-        sed -i "s|mercure:ChangePasswordHere@localhost|mercure:$${POSTGRES_PASSWORD}@db|" /opt/mercure/config/bookkeeper.env
+        sed -i "s|mercure:ChangePasswordHere@localhost|mercure:${POSTGRES_PASSWORD:-ChangePasswordHere}@db|" /opt/mercure/config/bookkeeper.env
         sed -i "s|@localhost|@db|" /opt/mercure/config/bookkeeper.env
-        if [ ! -f /opt/mercure/config/db.env ]; then
-          printf 'POSTGRES_PASSWORD=%s\n' "$${POSTGRES_PASSWORD}" > /opt/mercure/config/db.env
-        fi
-        chmod -R a+rX /opt/mercure/config /opt/mercure/persistence
+        printf 'POSTGRES_PASSWORD=%s\n' '${POSTGRES_PASSWORD:-ChangePasswordHere}' > /opt/mercure/config/db.env
+        chmod -R a+rwX /opt/mercure/config /opt/mercure/persistence /opt/mercure/data
     networks:
       - services
 
