@@ -49,7 +49,7 @@ services:
         condition: service_started
     environment:
       MERCURE_RUNNER: docker
-      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}@redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-mercure-redis-default-2026}@redis:6379/0"
     ports:
       - "8000:8000"
     volumes:
@@ -191,9 +191,9 @@ services:
     command:
       - sh
       - -c
-      - 'test -n "$$REDIS_PASSWORD" || { echo "ERROR: REDIS_PASSWORD is not set"; exit 1; } && exec redis-server --save 20 1 --requirepass "$$REDIS_PASSWORD"'
+      - 'exec redis-server --save 20 1 --requirepass "$$REDIS_PASSWORD"'
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-mercure-redis-default-2026}"
     volumes:
       - redis-cache:/data
     networks:
@@ -210,7 +210,7 @@ services:
       - redis
     environment:
       WORKER_QUEUE: mercure_fast
-      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}@redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-mercure-redis-default-2026}@redis:6379/0"
     volumes:
       - data:/opt/mercure/data
       - /opt/mercure/config:/opt/mercure/config:ro
@@ -225,7 +225,7 @@ services:
       - redis
     environment:
       WORKER_QUEUE: mercure_slow
-      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in environment}@redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-mercure-redis-default-2026}@redis:6379/0"
     volumes:
       - data:/opt/mercure/data
       - /opt/mercure/config:/opt/mercure/config:ro
