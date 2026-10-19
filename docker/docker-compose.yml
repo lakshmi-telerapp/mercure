@@ -1,3 +1,4 @@
+
 x-build: &build
   # Default context is the repo root relative to this file's location (repo/docker).
   # install.sh runs compose from $MERCURE_BASE and exports MERCURE_SRC to override this.
@@ -12,6 +13,7 @@ x-env: &env
 
 x-docker-user: &docker-user
   user: "${UID}:${DOCKER_GID}"
+
 x-user: &user
   user: "${UID}:${GID}"
 
@@ -78,7 +80,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U mercure" ]
+      test: ["CMD-SHELL", "pg_isready -U mercure"]
     networks:
       - datastore
 
@@ -189,7 +191,10 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: ["sh", "-c", "test -n \"$$REDIS_PASSWORD\" || { echo 'ERROR: REDIS_PASSWORD is not set'; exit 1; } && exec redis-server --save 20 1 --requirepass \"$$REDIS_PASSWORD\""]
+    command:
+      - sh
+      - -c
+      - 'test -n "$$REDIS_PASSWORD" || { echo "ERROR: REDIS_PASSWORD is not set"; exit 1; } && exec redis-server --save 20 1 --requirepass "$$REDIS_PASSWORD"'
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
@@ -206,8 +211,6 @@ services:
     restart: always
     depends_on:
       - redis
-    deploy:
-      replicas: 2
     environment:
       WORKER_QUEUE: mercure_fast
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -223,8 +226,6 @@ services:
     restart: always
     depends_on:
       - redis
-    deploy:
-      replicas: 2
     environment:
       WORKER_QUEUE: mercure_slow
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -238,16 +239,16 @@ volumes:
   db-data:
     driver: local
     driver_opts:
-      type: 'none'
-      o: 'bind'
-      device: '/opt/mercure/db'
+      type: "none"
+      o: "bind"
+      device: "/opt/mercure/db"
 
   data:
     driver: local
     driver_opts:
-      type: 'none'
-      o: 'bind'
-      device: '/opt/mercure/data'
+      type: "none"
+      o: "bind"
+      device: "/opt/mercure/data"
 
   redis-cache:
     driver: local
