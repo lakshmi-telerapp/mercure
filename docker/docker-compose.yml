@@ -47,6 +47,7 @@ services:
     restart: "no"
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangePasswordHere}
+      BOOKKEEPER_API_KEY: ${BOOKKEEPER_API_KEY:-${REDIS_PASSWORD:-mercure-redis-default-2026}}
     volumes:
       - /opt/mercure/config:/opt/mercure/config
       - /opt/mercure/persistence:/opt/mercure/persistence
@@ -56,13 +57,22 @@ services:
       - |
         set -eu
         mkdir -p /opt/mercure/config /opt/mercure/persistence
-        [ -f /opt/mercure/config/mercure.json ] || cp /opt/mercure/app/configuration/default_mercure.json /opt/mercure/config/mercure.json
+        if [ ! -f /opt/mercure/config/mercure.json ]; then
+          cp /opt/mercure/app/configuration/default_mercure.json /opt/mercure/config/mercure.json
+        fi
+        # Match install.sh docker setup: service DNS + real API key (placeholder refuses to boot).
+        sed -i "s|0.0.0.0:8080|bookkeeper:8080|" /opt/mercure/config/mercure.json
+        sed -i "s|BOOKKEEPER_TOKEN_PLACEHOLDER|$${BOOKKEEPER_API_KEY}|" /opt/mercure/config/mercure.json
         [ -f /opt/mercure/config/services.json ] || cp /opt/mercure/app/configuration/default_services.json /opt/mercure/config/services.json
-        [ -f /opt/mercure/config/webgui.env ] || cp /opt/mercure/app/configuration/default_webgui.env /opt/mercure/config/webgui.env
+        if [ ! -f /opt/mercure/config/webgui.env ]; then
+          cp /opt/mercure/app/configuration/default_webgui.env /opt/mercure/config/webgui.env
+        fi
+        sed -i "s|PutSomethingRandomHere|$${BOOKKEEPER_API_KEY}|" /opt/mercure/config/webgui.env
         if [ ! -f /opt/mercure/config/bookkeeper.env ]; then
           cp /opt/mercure/app/configuration/default_bookkeeper.env /opt/mercure/config/bookkeeper.env
-          sed -i "s|mercure:ChangePasswordHere@localhost|mercure:$${POSTGRES_PASSWORD}@db|" /opt/mercure/config/bookkeeper.env
         fi
+        sed -i "s|mercure:ChangePasswordHere@localhost|mercure:$${POSTGRES_PASSWORD}@db|" /opt/mercure/config/bookkeeper.env
+        sed -i "s|@localhost|@db|" /opt/mercure/config/bookkeeper.env
         if [ ! -f /opt/mercure/config/db.env ]; then
           printf 'POSTGRES_PASSWORD=%s\n' "$${POSTGRES_PASSWORD}" > /opt/mercure/config/db.env
         fi
