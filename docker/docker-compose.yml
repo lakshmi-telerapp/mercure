@@ -1,4 +1,4 @@
-
+```yaml
 x-build: &build
   context: ${MERCURE_SRC:-..}
   args:
@@ -15,6 +15,9 @@ x-docker-user: &docker-user
 x-user: &user
   user: "${UID:-1000}:${GID:-1000}"
 
+x-redis-env: &redis-env
+  REDIS_URL: "redis://:${REDIS_PASSWORD:-mercure-redis-default-2026}@redis:6379/0"
+
 networks:
   datastore:
     internal: true
@@ -29,7 +32,8 @@ services:
     build:
       context: ${MERCURE_SRC:-..}
       dockerfile: docker/base/Dockerfile
-    profiles: ["build"]
+    profiles:
+      - build
 
   ui:
     <<: [*docker-user, *env]
@@ -42,7 +46,7 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       worker_fast:
         condition: service_started
       worker_slow:
@@ -74,10 +78,11 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mercure"]
+      test: ["CMD-SHELL", "pg_isready -U mercure -d mercure"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
     networks:
       - datastore
 
@@ -196,6 +201,14 @@ services:
       REDIS_PASSWORD: "${REDIS_PASSWORD:-mercure-redis-default-2026}"
     volumes:
       - redis-cache:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG'
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
     networks:
       - datastore
 
@@ -207,7 +220,8 @@ services:
       dockerfile: docker/worker/Dockerfile
     restart: always
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment:
       WORKER_QUEUE: mercure_fast
       REDIS_URL: "redis://:${REDIS_PASSWORD:-mercure-redis-default-2026}@redis:6379/0"
@@ -222,7 +236,8 @@ services:
     image: mercureimaging/mercure-worker${IMAGE_TAG:-:latest}
     restart: always
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment:
       WORKER_QUEUE: mercure_slow
       REDIS_URL: "redis://:${REDIS_PASSWORD:-mercure-redis-default-2026}@redis:6379/0"
@@ -236,3 +251,4 @@ volumes:
   db-data:
   data:
   redis-cache:
+```
