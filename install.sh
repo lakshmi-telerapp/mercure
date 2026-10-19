@@ -358,8 +358,11 @@ setup_docker () {
     sudo chown $OWNER:$OWNER "$MERCURE_BASE"/docker-compose.yml
   fi
 
-  # Write .env for compose variable interpolation (REDIS_PASSWORD)
-  echo "REDIS_PASSWORD=$REDIS_PASSWORD" | sudo tee "$MERCURE_BASE"/.env > /dev/null
+  # Write .env for compose variable interpolation (REDIS_PASSWORD, POSTGRES_PASSWORD)
+  {
+    echo "REDIS_PASSWORD=$REDIS_PASSWORD"
+    echo "POSTGRES_PASSWORD=$DB_PWD"
+  } | sudo tee "$MERCURE_BASE"/.env > /dev/null
   sudo chown $OWNER:$OWNER "$MERCURE_BASE"/.env
   sudo chmod 600 "$MERCURE_BASE"/.env
 }
